@@ -109,7 +109,7 @@ def generate_map(input_image_size, output_image_size, aperture, rotation_matrix)
 
 def convert_fisheye_equ(input_image, output_image_size, aperture, rotation_matrix):
     """
-    This function convert a stereographic projected fisheye lens into an equirectangular projection image.
+    This function convert a equidistant projected fisheye lens into an equirectangular projection image.
 
     Args:
       input_image: input image should be numpy matrix
@@ -130,7 +130,7 @@ def convert_fisheye_equ(input_image, output_image_size, aperture, rotation_matri
     return image
 
 if __name__ == "__main__":
-    input_image = cv2.imread("fisheye_l.jpg")
+    input_image = cv2.imread("fisheye_r.jpg")
     output_image = convert_fisheye_equ(input_image, (4096,2048), 200.0 / 180.0 * PI, None)
 
 
