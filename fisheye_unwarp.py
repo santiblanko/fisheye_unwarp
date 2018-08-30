@@ -4,6 +4,7 @@ This module converts fisheye image into panoramic video.
 
 import cv2
 import numpy
+import numpy.linalg
 import math
 
 PI = math.pi
@@ -29,7 +30,7 @@ def lerp(x, x0,x1,y0,y1):
     return y0+(x-x0)*(y1-y0)/(x1-x0)
 
 
-def equ_to_vector(x,y):
+def equ_to_vector(x,y,r = 1.0):
     """
     This function converts a coordinate in 2D Equirectangular projection to its 3D point. 
     It assume the projection is on a sephere(which it converts back to). 
@@ -37,6 +38,7 @@ def equ_to_vector(x,y):
     Args:
       x: Horizontal coordinate
       y: Vertival coordinate
+      r: The radius of the sephere
 
     Return:
       Px: x of 3D point
@@ -46,12 +48,25 @@ def equ_to_vector(x,y):
     lon = x * PI
     lat = y * PI / 2.0
 
-    Px = math.cos(lat) * math.cos(lon)
-    Py = math.cos(lat) * math.sin(lon)
-    Pz = math.sin(lat)
+    Px = r * math.cos(lat) * math.cos(lon)
+    Py = r * math.cos(lat) * math.sin(lon)
+    Pz = r * math.sin(lat)
     return Px,Py,Pz
 
-def vector_to_fisheye(px,py,pz, aperture):
+def vector_to_r_theta(px,py,pz, aperture):
+    r = 2 * math.atan2(math.sqrt(px*px + pz*pz),py)/aperture
+    theta = math.atan2(pz,px)
+    return r,theta
+
+def vector_to_r_theta_with_delta_y(px,py,pz, dy, aperture):
+    vec = numpy.array([px,py-dy,pz])
+    px,py,pz = vec/numpy.linalg.norm(vec)
+    r = 2 * math.atan2(math.sqrt(px*px + pz*pz),py)/aperture
+    theta = math.atan2(pz,px)
+    return r, theta
+
+
+def vector_to_fisheye(px,py,pz, aperture, det_y = 0.0):
     """
     This function takes a 3D point on unit sephere, and map it to 2D fish eye
     coordinate.
@@ -61,17 +76,18 @@ def vector_to_fisheye(px,py,pz, aperture):
       py: y of 3D point
       pz: z of 3D point
       aperture: Fild of view of the image in radius.
+      det_y: The difference between lens principal point and origin point(0,0,0), we only allow 1D adjust.
 
     Return:
       x: x of 2D point on normalized plane
       y: y of 2D point on normalized plane
     """
-    r = 2 * math.atan2(math.sqrt(px*px + pz*pz),py)/aperture
-    theta = math.atan2(pz,px)
+    r,theta = vector_to_r_theta_with_delta_y(px,py,pz, det_y,aperture)
 
     x = r * math.cos(theta)
     y = r * math.sin(theta)
     return x,y
+
 
 def generate_map(input_image_size, output_image_size, aperture, rotation_matrix):
     """
@@ -97,8 +113,8 @@ def generate_map(input_image_size, output_image_size, aperture, rotation_matrix)
                 normal_x = lerp(x,0,output_image_size[1] - 1,-1,1)
                 normal_y = lerp(y,0,output_image_size[0] - 1,-1,1)
 
-                px,py,pz = equ_to_vector(normal_x, normal_y)
-                normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,aperture)
+                px,py,pz = equ_to_vector(normal_x, normal_y, 100.0)
+                normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,aperture, -13.86/2.0)
 
                 fish_x = lerp(normal_fish_x, -1,1, 0, input_image_size[1] -1)
                 fish_y = lerp(normal_fish_y, -1,1, 0, input_image_size[0] -1)
@@ -130,8 +146,8 @@ def convert_fisheye_equ(input_image, output_image_size, aperture, rotation_matri
     return image
 
 if __name__ == "__main__":
-    input_image = cv2.imread("fisheye_r.jpg")
-    output_image = convert_fisheye_equ(input_image, (4096,2048), 200.0 / 180.0 * PI, None)
+    input_image = cv2.imread("fisheye_left.jpg")
+    output_image = convert_fisheye_equ(input_image, (2048,1024), 200.0 / 180.0 * PI, None)
 
 
 
