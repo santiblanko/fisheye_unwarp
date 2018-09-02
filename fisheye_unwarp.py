@@ -58,15 +58,50 @@ def vector_to_r_theta(px,py,pz, aperture):
     theta = math.atan2(pz,px)
     return r,theta
 
-def vector_to_r_theta_with_delta_y(px,py,pz, dy, aperture):
+def fisheye_coord_to_fi_theta(fish_coord,aperture):
+    fi = numpy.linalg.norm(fish_coord) * aperture / 2.0
+    theta = math.atan2(fish_coord[1],fish_coord[0])
+    return fi,theta
+
+def fi_theta_to_pxyz(fi, theta,det_y = 0.0, rotation_matrix = numpy.eye(3)):
+    return math.sin(fi) * math.cos(theta),math.cos(fi),math.sin(theta)*math.sin(fi)
+
+def pxyz_to_equ(p_coord):
+    lon = math.atan2(p_coord[1],p_coord[0])
+    lat = math.atan2(p_coord[2],numpy.linalg.norm(p_coord[0:2]))
+    return lon / math.pi, 2.0 * lat / math.pi
+
+def test_fisheye_to_equ():
+    import random
+    eps = 0.0000001
+    rotation_matrix = numpy.eye(3)
+    for i in xrange(1000):
+        
+        fish_coord = numpy.array([(random.random() - 0.5) * 2.0,(random.random() - 0.5) * 2.0])
+        fi,theta = fisheye_coord_to_fi_theta(fish_coord,200.0 / 180.0 * PI)
+        p_coord = numpy.array(fi_theta_to_pxyz(fi,theta,0.0,rotation_matrix))
+        #print p_coord
+        x,y = pxyz_to_equ(p_coord)
+
+        px,py,pz = equ_to_vector(x,y)
+        #print px,py,pz
+        normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,200.0 / 180.0 * PI, 0,rotation_matrix)
+        if abs( fish_coord[0] - normal_fish_x) > eps or abs(fish_coord[1] - normal_fish_y) > eps:
+            print 'error'
+
+
+
+def vector_to_r_theta_with_delta_y(px,py,pz, aperture, dy, rotation_matrix):
     vec = numpy.array([px,py-dy,pz])
-    px,py,pz = vec/numpy.linalg.norm(vec)
+    vec = vec/numpy.linalg.norm(vec)
+    px,py,pz = rotation_matrix.dot(vec)
+
     r = 2 * math.atan2(math.sqrt(px*px + pz*pz),py)/aperture
     theta = math.atan2(pz,px)
     return r, theta
 
 
-def vector_to_fisheye(px,py,pz, aperture, det_y = 0.0):
+def vector_to_fisheye(px,py,pz, aperture, det_y = 0.0, rotation_matrix = numpy.eye(3)):
     """
     This function takes a 3D point on unit sephere, and map it to 2D fish eye
     coordinate.
@@ -82,7 +117,7 @@ def vector_to_fisheye(px,py,pz, aperture, det_y = 0.0):
       x: x of 2D point on normalized plane
       y: y of 2D point on normalized plane
     """
-    r,theta = vector_to_r_theta_with_delta_y(px,py,pz, det_y,aperture)
+    r,theta = vector_to_r_theta_with_delta_y(px,py,pz,aperture, det_y,rotation_matrix)
 
     x = r * math.cos(theta)
     y = r * math.sin(theta)
@@ -108,13 +143,14 @@ def generate_map(input_image_size, output_image_size, aperture, rotation_matrix)
         print "error output_image_size"
     else:
         image_map = numpy.zeros((output_image_size[0],output_image_size[1],2),dtype = numpy.float32)
+        rotation_matrix = numpy.eye(3)
         for x in xrange(output_image_size[1]):
             for y in xrange(output_image_size[0]):
                 normal_x = lerp(x,0,output_image_size[1] - 1,-1,1)
                 normal_y = lerp(y,0,output_image_size[0] - 1,-1,1)
 
-                px,py,pz = equ_to_vector(normal_x, normal_y, 100.0)
-                normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,aperture, -13.86/2.0)
+                px,py,pz = equ_to_vector(normal_x, normal_y, r = 1000.0)
+                normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,aperture, 20/2.0,rotation_matrix)
 
                 fish_x = lerp(normal_fish_x, -1,1, 0, input_image_size[1] -1)
                 fish_y = lerp(normal_fish_y, -1,1, 0, input_image_size[0] -1)
@@ -146,8 +182,9 @@ def convert_fisheye_equ(input_image, output_image_size, aperture, rotation_matri
     return image
 
 if __name__ == "__main__":
-    input_image = cv2.imread("fisheye_left.jpg")
-    output_image = convert_fisheye_equ(input_image, (2048,1024), 200.0 / 180.0 * PI, None)
+    input_image = cv2.imread("fisheye_r.jpg")
+    #output_image = convert_fisheye_equ(input_image, (2048,1024), 200.0 / 180.0 * PI, None)
+    test_fisheye_to_equ()
 
 
 
