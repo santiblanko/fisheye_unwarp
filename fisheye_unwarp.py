@@ -37,6 +37,13 @@ def solve_quadratic(a,b,c):
         x2 = (-b - math.sqrt(b*b-4 * a * c))/ (2 * a)
         return x1,x2
 
+def rotation_matrix_x(theta):
+    return numpy.array([
+        [1,0,0],
+        [0,math.cos(theta), -math.sin(theta)],
+        [0, math.sin(theta), math.cos(theta)]
+    ])
+
 
 def equ_to_vector(x,y,r = 1.0):
     """
@@ -88,9 +95,9 @@ def pxyz_to_equ(p_coord):
 def test_fisheye_to_equ():
     import random
     eps = 0.0000001
-    rotation_matrix = numpy.eye(3)
-    r = 1.0
-    det_y =random.random()
+    rotation_matrix = rotation_matrix_x(60.0 / 180.0 * math.pi)
+    r = 1.1
+    det_y = random.random()
     fov = 200 /180.0 *math.pi
     for i in xrange(100):
         
@@ -100,9 +107,9 @@ def test_fisheye_to_equ():
         # print p_coord
         x,y = pxyz_to_equ(p_coord)
 
-        px,py,pz = equ_to_vector(x,y)
+        px,py,pz = equ_to_vector(x,y,r)
         # print px,py,pz
-        normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,fov, det_y,rotation_matrix)
+        normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,fov, det_y,rotation_matrix.T)
         if abs( fish_coord[0] - normal_fish_x) > eps or abs(fish_coord[1] - normal_fish_y) > eps:
             print normal_fish_x, normal_fish_y
             print fish_coord
