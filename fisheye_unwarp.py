@@ -29,6 +29,14 @@ def lerp(x, x0,x1,y0,y1):
     x, x0,x1,y0,y1 = map(float, (x, x0,x1,y0,y1))
     return y0+(x-x0)*(y1-y0)/(x1-x0)
 
+def solve_quadratic(a,b,c):
+    if b*b - 4 * a * c < 0:
+        return None# no real solution
+    else:
+        x1 = (-b + math.sqrt(b*b-4 * a * c))/ (2 * a)
+        x2 = (-b - math.sqrt(b*b-4 * a * c))/ (2 * a)
+        return x1,x2
+
 
 def equ_to_vector(x,y,r = 1.0):
     """
@@ -63,8 +71,14 @@ def fisheye_coord_to_fi_theta(fish_coord,aperture):
     theta = math.atan2(fish_coord[1],fish_coord[0])
     return fi,theta
 
-def fi_theta_to_pxyz(fi, theta,det_y = 0.0, rotation_matrix = numpy.eye(3)):
-    return math.sin(fi) * math.cos(theta),math.cos(fi),math.sin(theta)*math.sin(fi)
+def fi_theta_to_pxyz(fi, theta, o_center_position = numpy.array([0.0,0.0,0.0]), r = 1.0,rotation_matrix = numpy.eye(3)):
+    vec = numpy.array([math.sin(fi) * math.cos(theta),\
+                        math.cos(fi),\
+                        math.sin(theta)*math.sin(fi)])
+    vec = rotation_matrix.dot(vec)
+    o_center_length = numpy.linalg.norm(o_center_position)
+    x1,x2 = solve_quadratic(1.0, 2.0 * numpy.inner(vec, o_center_position), o_center_length * o_center_length - r * r)
+    return x1 * vec + o_center_position
 
 def pxyz_to_equ(p_coord):
     lon = math.atan2(p_coord[1],p_coord[0])
@@ -75,18 +89,23 @@ def test_fisheye_to_equ():
     import random
     eps = 0.0000001
     rotation_matrix = numpy.eye(3)
-    for i in xrange(1000):
+    r = 1.0
+    det_y =random.random()
+    fov = 200 /180.0 *math.pi
+    for i in xrange(100):
         
         fish_coord = numpy.array([(random.random() - 0.5) * 2.0,(random.random() - 0.5) * 2.0])
-        fi,theta = fisheye_coord_to_fi_theta(fish_coord,200.0 / 180.0 * PI)
-        p_coord = numpy.array(fi_theta_to_pxyz(fi,theta,0.0,rotation_matrix))
-        #print p_coord
+        fi,theta = fisheye_coord_to_fi_theta(fish_coord,fov)
+        p_coord = fi_theta_to_pxyz(fi,theta,numpy.array([0.0,det_y,0.0]),r,rotation_matrix)
+        # print p_coord
         x,y = pxyz_to_equ(p_coord)
 
         px,py,pz = equ_to_vector(x,y)
-        #print px,py,pz
-        normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,200.0 / 180.0 * PI, 0,rotation_matrix)
+        # print px,py,pz
+        normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,fov, det_y,rotation_matrix)
         if abs( fish_coord[0] - normal_fish_x) > eps or abs(fish_coord[1] - normal_fish_y) > eps:
+            print normal_fish_x, normal_fish_y
+            print fish_coord
             print 'error'
 
 
