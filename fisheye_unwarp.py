@@ -1,5 +1,5 @@
 """
-This module converts fisheye image into panoramic video. 
+This module converts fisheye image into panoramic image. 
 """
 
 import cv2
@@ -7,61 +7,11 @@ import numpy
 import numpy.linalg
 import math
 import find_checkerboard
+import math_util
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-
-
 PI = math.pi
-
-def rotation_matrix_decompose(r):
-    return numpy.array( (math.atan2(r[2][1],r[2][2]),\
-                        math.atan2(-r[2][0],math.sqrt(r[2][1]*r[2][1]+r[2][2]*r[2][2])),\
-                        math.atan2(r[1][0],r[0][0])))
-
-def lerp(x, x0,x1,y0,y1):
-    """
-    This function is a helper function to normalize values.
-    Mathmatically, this function does a linear interpolation for x from 
-    range [x0,x1] to [y0,y1]. 
-    see https://en.wikipedia.org/wiki/Linear_interpolation
-
-    Args:
-      x: Value to be interpolated
-      x0: Lower range of the original range.
-      x1: Higher range of the original range.
-      y0: Lower range of the targeted range.
-      y1: Higher range of the targeted range.
-
-    Returns:
-      float: interpolated value.
-    """
-    # if not(x0 <= x <= x1):
-    #     print x
-
-    x, x0,x1,y0,y1 = map(float, (x, x0,x1,y0,y1))
-    return y0+(x-x0)*(y1-y0)/(x1-x0)
-
-def solve_quadratic(a,b,c):
-    if b*b - 4 * a * c < 0:
-        return None# no real solution
-    else:
-        x1 = (-b + math.sqrt(b*b-4 * a * c))/ (2 * a)
-        x2 = (-b - math.sqrt(b*b-4 * a * c))/ (2 * a)
-        return x1,x2
-
-def rotation_matrix_x(theta):
-    return numpy.array([
-        [1,0,0],
-        [0,math.cos(theta), -math.sin(theta)],
-        [0, math.sin(theta), math.cos(theta)]
-    ])
-def rotation_matrix_z(theta):
-    return numpy.array([
-        [math.cos(theta), -math.sin(theta),0],
-        [math.sin(theta), math.cos(theta),0],
-        [0,0,1 ]
-    ])
 
 
 def equ_to_vector(x,y,r = 1.0):
@@ -103,7 +53,7 @@ def fi_theta_to_pxyz(fi, theta, o_center_position = numpy.array([0.0,0.0,0.0]), 
                         math.sin(theta)*math.sin(fi)])
     vec = rotation_matrix.dot(vec)
     o_center_length = numpy.linalg.norm(o_center_position)
-    x1,x2 = solve_quadratic(1.0, 2.0 * numpy.inner(vec, o_center_position), o_center_length * o_center_length - r * r)
+    x1,x2 = math_util.solve_quadratic(1.0, 2.0 * numpy.inner(vec, o_center_position), o_center_length * o_center_length - r * r)
     return x1 * vec + o_center_position
 
 def pxyz_to_equ(p_coord):
@@ -111,113 +61,19 @@ def pxyz_to_equ(p_coord):
     lat = math.atan2(p_coord[2],numpy.linalg.norm(p_coord[0:2]))
     return lon / math.pi, 2.0 * lat / math.pi
 
-def test_fisheye_to_equ():
-    import random
-    eps = 0.0000001
-    rotation_matrix = rotation_matrix_x(60.0 / 180.0 * math.pi)
-    r = 1000.0
-    det_y = numpy.array([random.random(),random.random(),random.random()])
-    fov = 200 /180.0 *math.pi
-    for i in xrange(100):
-        
-        fish_coord = numpy.array([(random.random() - 0.5) * 2.0,(random.random() - 0.5) * 2.0])
-        fi,theta = fisheye_coord_to_fi_theta(fish_coord,fov)
-        p_coord = fi_theta_to_pxyz(fi,theta,det_y,r,rotation_matrix)
-        # print p_coord
-        x,y = pxyz_to_equ(p_coord)
-
-        px,py,pz = equ_to_vector(x,y,r)
-        # print px,py,pz
-        normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,fov, det_y,rotation_matrix.T)
-        if abs( fish_coord[0] - normal_fish_x) > eps or abs(fish_coord[1] - normal_fish_y) > eps:
-            print normal_fish_x, normal_fish_y
-            print fish_coord
-            print 'error'
-
-def test_equ_to_fisheye():
-    import random
-    eps = 0.0000001
-    rotation_matrix = rotation_matrix_x(60.0 / 180.0 * math.pi)
-    r = 1000.0
-    det_y = numpy.array([random.random(),random.random(),random.random()])
-    fov = 200 /180.0 *math.pi
-    for i in xrange(100):
-        equ_coord = (random.random() - 0.5) * 2.0,(random.random() - 0.5) * 2.0
-        px,py,pz = equ_to_vector(equ_coord[0],equ_coord[1],r)
-        # print px,py,pz
-        normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,fov, det_y,rotation_matrix.T)
-        
-        fish_coord = numpy.array([normal_fish_x, normal_fish_y])
-        fi,theta = fisheye_coord_to_fi_theta(fish_coord,fov)
-        p_coord = fi_theta_to_pxyz(fi,theta,det_y,r,rotation_matrix)
-        # print p_coord
-        x,y = pxyz_to_equ(p_coord)
-
-        
-        if abs( equ_coord[0] - x) > eps or abs(equ_coord[1] - y) > eps:
-            print equ_coord
-            print x,y
-            print 'error'
-
-def test_general():
-    import random
-    eps = 0.0000001
-    rotation_matrix = rotation_matrix_z(math.pi).dot(rotation_matrix_x(random.random()*10*180 / math.pi))
-    #rotation matrix for point set b, set a is eye
-    eye = numpy.eye(3)
-    r = 1000.0
-
-    det_y_l = numpy.array([random.random(),random.random(),random.random()])
-    det_y_r = -det_y_l
-    fov = 200 /180.0 *math.pi
-    fi_array = numpy.array([random.random()*math.pi for _ in xrange(10)])
-    theta_array = numpy.array([math.pi + (random.random()-0.5)*10.0/180*math.pi\
-                               for _ in xrange(10)])#180 +- 10 degree
-    norm_equal_xy = map(lambda ro,t: (r*math.cos(ro),r*math.sin(t)), fi_array,theta_array)
-    fish_coord_a = []
-    fish_coord_b = []
-    for x,y in norm_equal_xy:
-        px,py,pz = equ_to_vector(x,y,r)
-        fish_coord_a.append(numpy.array(vector_to_fisheye(px,py,pz,fov, det_y_l,eye)))
-        fish_coord_b.append(numpy.array(vector_to_fisheye(px,py,pz,fov, det_y_r,rotation_matrix)))
-
-    result,min_fov = dual_fisheye_calibrate(None,None, fov,fov, fish_coord_a,fish_coord_b)
-
-    error, r_l,t_l, r_r,t_r = result
-
-    print numpy.allclose(rotation_matrix.T,r_r)
-    print numpy.allclose(t_l, det_y_l)
-
-    for i, (x,y) in enumerate(norm_equal_xy):
-        px,py,pz = equ_to_vector(x, y, r)
-        fish_coord = vector_to_fisheye(px,py,pz,fov, t_r,r_r)
-        if numpy.allclose(fish_coord, fish_coord_b[i]):
-            print fish_coord, fish_coord_b[i]
-
-
-    #1. randomly choose three points with correct theta, phi
-    #2. generate second rotation matrix and translation(first one is eye)
-    #3. generate each points fisheye point
-    #4. throw it in dual fish eye calibrate
-    #5. check if mat is the same
    
 
 def calculate_error_2D(points_a, points_b, r):
     difference = 0.0
     points_a/= r
     points_b/= r
-    temp_a = numpy.zeros((len(points_a),2))
-    temp_b = numpy.zeros((len(points_b),2))
     i = 0
     for p_a, p_b in zip(points_a, points_b):
         coord_a = numpy.array(pxyz_to_equ(p_a))
         coord_b = numpy.array(pxyz_to_equ(p_b))
-        # temp_a[i]= coord_a
-        # temp_b[i]= coord_b
         i += 1
         difference += numpy.linalg.norm(coord_a-coord_b)
 
-    #print difference / len(points_b)
     return difference / len(points_b)
 
 def print_points_2d(points_a, points_b, r):
@@ -226,14 +82,14 @@ def print_points_2d(points_a, points_b, r):
     points_b/= r
     for p_a in points_a:
         coord_a = numpy.array(pxyz_to_equ(p_a))
-        coord_a_x = int(lerp(coord_a[0],-1,1,0,2048))
-        coord_a_y = int(lerp(coord_a[1],-1,1,0,1024))
+        coord_a_x = int(math_util.lerp(coord_a[0],-1,1,0,2048))
+        coord_a_y = int(math_util.lerp(coord_a[1],-1,1,0,1024))
         img[coord_a_y,coord_a_x,:] = [255,0,0]
 
     for p_b in points_b:
         coord_b = numpy.array(pxyz_to_equ(p_b))
-        coord_b_x = int(lerp(coord_b[0],-1,1,0,2048))
-        coord_b_y = int(lerp(coord_b[1],-1,1,0,1024))
+        coord_b_x = int(math_util.lerp(coord_b[0],-1,1,0,2048))
+        coord_b_y = int(math_util.lerp(coord_b[1],-1,1,0,1024))
         img[coord_b_y,coord_b_x,:] = [0,255,0]
     cv2.imwrite("template.png",img)
 
@@ -243,8 +99,6 @@ def print_points_2d(points_a, points_b, r):
 def dual_fisheye_calibrate(image_l, image_r,fov_l,fov_r,points_a=None, points_b=None):
 
     # for both image
-    #[1/2.0,0.0,1/2.0,1/2.0],[1/4.0,0.0,1/4.0,1/4.0],[1/4.0,3/4.0,1/4.0,1/4.0],[1/2.0,3/4.0,1/4.0,1/4.0]
-    #[1/4.0,0.0,1/4.0,1/4.0],[1/2.0,0.0,1/4.0,1/4.0],[1/2.0,3/4.0,1/4.0,1/4.0],[1/4.5,3/4.0,1/4.0,1/4.0]
     image_boards = numpy.array([[[1/2.0,0.0,1/2.0,1/2.0],[1/4.0,0.0,1/4.0,1/4.0],[0.0,1/4.5,1/4.0,1/4.0],[0.0,1/2.0,1/3.0,1/3.0],[1/4.0,3/4.0,1/4.0,1/4.0],[1/2.0,3/4.0,1/4.0,1/4.0]],\
                                 [[1/4.0,0.0,1/4.0,1/4.0],[1/2.0,0.0,1/4.0,1/4.0],[3/4.0,1/4.5,1/4.0,1/4.0],[3/4.0,1/2.0,1/3.0,1/3.0],[1/2.0,3/4.0,1/4.0,1/4.0],[1/4.5,3/4.0,1/4.0,1/4.0]]])
     all_points = []
@@ -275,7 +129,7 @@ def dual_fisheye_calibrate(image_l, image_r,fov_l,fov_r,points_a=None, points_b=
     # 2. unwarp and project to global pxyz
     def find_r_t(fov_l,fov_r,image_center_l=numpy.array([0.0,0.0]),\
                              image_center_r=numpy.array([0.0,0.0])):
-        rotation_matrix_l = rotation_matrix_z(math.pi/2.0)
+        rotation_matrix_l = numpy.eye(3) #math_util.rotation_matrix_z(math.pi/2.0)
         rotation_matrix_r = numpy.eye(3)
         r = 1000.0
         det_y_l = numpy.array([0.0,0.0,0.0])
@@ -300,7 +154,7 @@ def dual_fisheye_calibrate(image_l, image_r,fov_l,fov_r,points_a=None, points_b=
 
 
             # 3. find translation + rotation for points
-            new_rotation,t = find_rigid_transformation(numpy.mat(r_reproject_pts),numpy.mat(l_reproject_pts))
+            new_rotation,t = math_util.find_rigid_transformation(numpy.mat(r_reproject_pts),numpy.mat(l_reproject_pts))
 
             # 4. calculate error
             #print rotation_matrix_l
@@ -311,7 +165,7 @@ def dual_fisheye_calibrate(image_l, image_r,fov_l,fov_r,points_a=None, points_b=
             numpy.matmul(new_rotation,rotation_matrix_r,rotation_matrix_r)
 
             #print calculate_error(new_rotation, t,l_reproject_pts,r_reproject_pts)
-        print_points_2d(l_reproject_pts.copy(), r_reproject_pts.copy(), 1000.0)
+        #print_points_2d(l_reproject_pts.copy(), r_reproject_pts.copy(), 1000.0)
         return (error,rotation_matrix_l.T,det_y_l , rotation_matrix_r.T, det_y_r)
     min_value = float("inf")
     min_result = None
@@ -333,48 +187,28 @@ def dual_fisheye_calibrate(image_l, image_r,fov_l,fov_r,points_a=None, points_b=
                 min_result = result
                 min_fov = (fov_l+d_fov_l/180.0 * math.pi, fov_r+d_fov_r/180.0 * math.pi)
 
-
-
     return min_result,min_fov
 
 
 
 def calculate_error(r,t,pts_a,pts_b):
+    """
+    This function calculates error by measuring the distance between 
+    corresponding r(p_a) + t and p_b
+
+    Args:
+      r: 3x3 numpy rotation matrix
+      t: 3x1 numpy translation array
+      pts_a: nx3 3D points
+      pts_b: nx3 3D points
+
+    Return:
+      diff: Average difference of transformed a and b points
+    """
     diff = 0.0
     for p_a, p_b in zip(pts_a,pts_b):
         diff += numpy.linalg.norm(r.dot(p_a)+t-p_b)
     return diff/len(p_a)
-
-
-def find_rigid_transformation(A, B):
-    assert len(A) == len(B)
-
-    N = A.shape[0]; # total points
-
-    centroid_A = numpy.mean(A, axis=0)
-    centroid_B = numpy.mean(B, axis=0)
-    
-    # centre the points
-    AA = A - numpy.tile(centroid_A, (N, 1))
-    BB = B - numpy.tile(centroid_B, (N, 1))
-
-    # dot is matrix multiplication for array
-    H = numpy.transpose(AA) * BB
-
-    U, S, Vt = numpy.linalg.svd(H)
-
-    R = Vt.T * U.T
-
-    # special reflection case
-    if numpy.linalg.det(R) < 0:
-       print "Reflection detected"
-       Vt[2,:] *= -1
-       R = Vt.T * U.T
-
-    t = -R*centroid_A.T + centroid_B.T
-
-    return R, t
-
 
 def reproject_coords(coords, fov, r, o_center_position, rotation_matrix):
     result = numpy.zeros((len(coords), 3))
@@ -438,14 +272,14 @@ def generate_map(input_image_size, output_image_size, aperture, rotation_matrix,
         image_map = numpy.zeros((output_image_size[0],output_image_size[1],2),dtype = numpy.float32)
         for x in xrange(output_image_size[1]):
             for y in xrange(output_image_size[0]):
-                normal_x = lerp(x,0,output_image_size[1] - 1,-1,1)
-                normal_y = lerp(y,0,output_image_size[0] - 1,-1,1)
+                normal_x = math_util.lerp(x,0,output_image_size[1] - 1,-1,1)
+                normal_y = math_util.lerp(y,0,output_image_size[0] - 1,-1,1)
 
                 px,py,pz = equ_to_vector(normal_x, normal_y, r = 1000.0)
                 normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,aperture, o_center_position,rotation_matrix)
 
-                fish_x = lerp(normal_fish_x, -1,1, 0, input_image_size[1] -1)
-                fish_y = lerp(normal_fish_y, -1,1, 0, input_image_size[0] -1)
+                fish_x = math_util.lerp(normal_fish_x, -1,1, 0, input_image_size[1] -1)
+                fish_y = math_util.lerp(normal_fish_y, -1,1, 0, input_image_size[0] -1)
 
                 image_map[y,x] = fish_x, fish_y
         return image_map
@@ -473,33 +307,7 @@ def convert_fisheye_equ(input_image,output_image_name, output_image_size, apertu
     # c = cv2.waitKey(0)
     return image
 
-def test_rigid_motion():
-    import random
-    points_a = numpy.array([[1,0,0],[0,1,0],[0,0,1]],dtype=numpy.float32)
-    points_b = numpy.array([[1,0,0],[0,1,0],[0,0,1]],dtype=numpy.float32)
 
-    #print math.pi / 2.0 * random.random()
-    rotation = rotation_matrix_x( math.pi*random.random())
-    for i in xrange(len(points_b)):
-        points_b[i] = rotation.dot(points_b[i])
-    
-
-    r,t = find_rigid_transformation(numpy.mat(points_b), numpy.mat(points_a))
-
-
-    A2 = (r*points_b.T) + numpy.tile(t, (1, 3))
-    A2 = A2.T
-
-    # Find the error
-    err = A2 - points_a
-    print rotation-r
-
-
-    print err
-    err = numpy.multiply(err, err)
-    err = numpy.sum(err)
-    rmse = numpy.sqrt(err/3.0)
-    print rmse
 
 
 def rotation():
@@ -519,11 +327,7 @@ if __name__ == "__main__":
     input_image_l = cv2.imread("fisheye_l.jpg")
 
     # rotation()
-    #test_rigid_motion()
-    
-    
-    # test_equ_to_fisheye()
-    # test_general()
+   
 
     result, fov = dual_fisheye_calibrate(input_image_l,input_image_r,200 /180.0 *math.pi,200 /180.0 *math.pi)
     print fov[0]/ math.pi*180,fov[1]/math.pi*180
@@ -532,12 +336,12 @@ if __name__ == "__main__":
     print r_l, t_l
     print r_r, t_r
 
-    # e = numpy.array(rotation_matrix_decompose(r_r))
+    # e = numpy.array(math_util.rotation_matrix_decompose(r_r))
     # print e / math.pi*180
 
 
-    output_image = convert_fisheye_equ(input_image_l,"out_l.jpg", (4096,2048), fov[0], r_l, t_l)
-    output_image = convert_fisheye_equ(input_image_r,"out_r.jpg", (4096,2048), fov[1], r_r, t_r)
+    # output_image = convert_fisheye_equ(input_image_l,"out_l.jpg", (4096,2048), fov[0], r_l, t_l)
+    # output_image = convert_fisheye_equ(input_image_r,"out_r.jpg", (4096,2048), fov[1], r_r, t_r)
 
 
 

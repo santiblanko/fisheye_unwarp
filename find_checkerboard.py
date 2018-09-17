@@ -34,11 +34,11 @@ def find_checkerboard(mask_rect, image, pattern_size = (6, 3)):
     if found:
         term = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_COUNT, 30, 0.1)
         cv.cornerSubPix(subImage, corners, (5, 5), (-1, -1), term)
-        vis = cv.cvtColor(subImage, cv.COLOR_GRAY2BGR)
+        #vis = cv.cvtColor(subImage, cv.COLOR_GRAY2BGR)
         
-        cv.drawChessboardCorners(vis, pattern_size, corners, found)
+        #cv.drawChessboardCorners(vis, pattern_size, corners, found)
         #cv.imshow("aaa", vis)
-        cv.imwrite('checkerboard_{0}.png'.format(i), vis)
+        #cv.imwrite('checkerboard_{0}.png'.format(i), vis)
         i+= 1
         
         corners[:,:,0:2] += mask_rect[:2]
