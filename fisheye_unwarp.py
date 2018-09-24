@@ -14,7 +14,7 @@ from mpl_toolkits.mplot3d import Axes3D
 PI = math.pi
 
 
-def equ_to_vector(x,y,r = 1.0):
+def equ_to_vector(x, y, r=1.0):
     """
     This function converts a coordinate in 2D Equirectangular projection to its 3D point. 
     It assume the projection is on a sephere(which it converts back to). 
@@ -35,17 +35,46 @@ def equ_to_vector(x,y,r = 1.0):
     Px = r * math.cos(lat) * math.cos(lon)
     Py = r * math.cos(lat) * math.sin(lon)
     Pz = r * math.sin(lat)
-    return Px,Py,Pz
+    return Px, Py, Pz
 
-def vector_to_r_theta(px,py,pz, aperture):
-    r = 2 * math.atan2(math.sqrt(px*px + pz*pz),py)/aperture
-    theta = math.atan2(pz,px)
-    return r,theta
 
-def fisheye_coord_to_fi_theta(fish_coord,aperture):
+def vector_to_r_theta(px, py, pz, aperture):
+    """
+    This function converts a coordinate on a sphere, to r, theta in projection. What we have is an axis, y axis that is
+    where our lens is pointing to, and r defines the angle of y axis to the point p which is defined by px, py, pz.
+    Theta is the rotation of the point p on y axis. Note: P = (Px, Py, Pz), |P| = 1.
+
+    Args:
+      px: x of 3D point
+      py: y of 3D point
+      pz: z of 3D point
+
+    Return:
+      r: r, Angle of PO and y axis
+      theta: Rotation of point p on y axis.
+    """
+    r = 2 * math.atan2(math.sqrt(px*px + pz*pz), py)/aperture
+    theta = math.atan2(pz, px)
+    return r, theta
+
+
+def fisheye_coord_to_fi_theta(fish_coord, aperture):
+    """
+    This function translates fisheye coordinate to fi, theta. Please see: http://paulbourke.net/dome/dualfish2sphere/
+
+    Args:
+        fish_coord: 3x1 vector. The values should be normalized, where x = [-1,1], y = [-1,1]
+        aperture: The Field of view in radius.
+
+    Returns:
+        fi: Fi in radius.
+        theta: Theta in radius.
+
+    """
     fi = numpy.linalg.norm(fish_coord) * aperture / 2.0
-    theta = math.atan2(fish_coord[1],fish_coord[0])
-    return fi,theta
+    theta = math.atan2(fish_coord[1], fish_coord[0])
+    return fi, theta
+
 
 def fi_theta_to_pxyz(fi, theta, o_center_position = numpy.array([0.0,0.0,0.0]), r = 1.0,rotation_matrix = numpy.eye(3)):
     vec = numpy.array([math.sin(fi) * math.cos(theta),\
@@ -56,12 +85,12 @@ def fi_theta_to_pxyz(fi, theta, o_center_position = numpy.array([0.0,0.0,0.0]), 
     x1,x2 = math_util.solve_quadratic(1.0, 2.0 * numpy.inner(vec, o_center_position), o_center_length * o_center_length - r * r)
     return x1 * vec + o_center_position
 
+
 def pxyz_to_equ(p_coord):
-    lon = math.atan2(p_coord[1],p_coord[0])
-    lat = math.atan2(p_coord[2],numpy.linalg.norm(p_coord[0:2]))
+    lon = math.atan2(p_coord[1], p_coord[0])
+    lat = math.atan2(p_coord[2], numpy.linalg.norm(p_coord[0:2]))
     return lon / math.pi, 2.0 * lat / math.pi
 
-   
 
 def calculate_error_2D(points_a, points_b, r):
     difference = 0.0
@@ -75,6 +104,7 @@ def calculate_error_2D(points_a, points_b, r):
         difference += numpy.linalg.norm(coord_a-coord_b)
 
     return difference / len(points_b)
+
 
 def print_points_2d(points_a, points_b, r):
     img = numpy.zeros((1024,2048,3),dtype=numpy.uint8)
@@ -92,8 +122,6 @@ def print_points_2d(points_a, points_b, r):
         coord_b_y = int(math_util.lerp(coord_b[1],-1,1,0,1024))
         img[coord_b_y,coord_b_x,:] = [0,255,0]
     cv2.imwrite("template.png",img)
-
-
 
 
 def dual_fisheye_calibrate(image_l, image_r,fov_l,fov_r,points_a=None, points_b=None):
@@ -237,7 +265,7 @@ def vector_to_fisheye(px,py,pz, aperture, det_y, rotation_matrix = numpy.eye(3))
       px: x of 3D point
       py: y of 3D point
       pz: z of 3D point
-      aperture: Fild of view of the image in radius.
+      aperture: Field of view of the image in radius.
       det_y: The difference between lens principal point and origin point(0,0,0), we only allow 1D adjust.
 
     Return:
@@ -258,7 +286,7 @@ def generate_map(input_image_size, output_image_size, aperture, rotation_matrix,
     Args:
       input_image_size: Tuple of the input image size, (y,x)
       output_image_size: Tuple of the output image size, (y,x)
-      aperture: Fild of view of the image in radius.
+      aperture: Field of view of the image in radius.
       rotation_matrix: Not used for now
 
     Return:
@@ -269,11 +297,11 @@ def generate_map(input_image_size, output_image_size, aperture, rotation_matrix,
     if output_image_size[0] * 2 != output_image_size[1]:
         print "error output_image_size"
     else:
-        image_map = numpy.zeros((output_image_size[0],output_image_size[1],2),dtype = numpy.float32)
+        image_map = numpy.zeros((output_image_size[0], output_image_size[1], 2), dtype= numpy.float32)
         for x in xrange(output_image_size[1]):
             for y in xrange(output_image_size[0]):
                 normal_x = math_util.lerp(x,0,output_image_size[1] - 1,-1,1)
-                normal_y = math_util.lerp(y,0,output_image_size[0] - 1,-1,1)
+                normal_y = - math_util.lerp(y,0,output_image_size[0] - 1,-1,1)#invert y value
 
                 px,py,pz = equ_to_vector(normal_x, normal_y, r = 1000.0)
                 normal_fish_x, normal_fish_y = vector_to_fisheye(px,py,pz,aperture, o_center_position,rotation_matrix)
@@ -285,7 +313,7 @@ def generate_map(input_image_size, output_image_size, aperture, rotation_matrix,
         return image_map
 
 
-def convert_fisheye_equ(input_image,output_image_name, output_image_size, aperture, rotation_matrix,o_center_position):
+def convert_fisheye_equ(input_image, output_image_size, aperture, rotation_matrix,o_center_position):
     """
     This function convert a equidistant projected fisheye lens into an equirectangular projection image.
 
@@ -302,12 +330,10 @@ def convert_fisheye_equ(input_image,output_image_name, output_image_size, apertu
     image_map = generate_map(input_image.shape, image.shape, aperture, rotation_matrix,o_center_position)
 
     cv2.remap(src=input_image, dst=image, map1=image_map, map2=None,interpolation=cv2.INTER_CUBIC)
-    cv2.imwrite(output_image_name,image)
+    #cv2.imwrite(output_image_name,image)
     # cv2.imshow("aaa",image)
     # c = cv2.waitKey(0)
     return image
-
-
 
 
 def rotation():
@@ -320,29 +346,34 @@ def rotation():
         cv2.imwrite("rotation_test_{}.jpg".format(i*45), output_image)
 
 
-
-
 if __name__ == "__main__":
-    input_image_r = cv2.imread("fisheye_r.jpg")
-    input_image_l = cv2.imread("fisheye_l.jpg")
+    input_image_r = cv2.imread("image/fisheye_r.jpg")
+    input_image_l = cv2.imread("image/fisheye_l.jpg")
 
     # rotation()
    
 
     result, fov = dual_fisheye_calibrate(input_image_l,input_image_r,200 /180.0 *math.pi,200 /180.0 *math.pi)
-    print fov[0]/ math.pi*180,fov[1]/math.pi*180
+    #print fov[0]/ math.pi*180,fov[1]/math.pi*180
     error, r_l,t_l, r_r,t_r = result
-    print error
-    print r_l, t_l
-    print r_r, t_r
+    print "Reproject Error:",error
+    print "Left image rotation matrix:"
+    print r_l
+    print "Left image Translation:"
+    print t_l
+    print "Right image rotation matrix:"
+    print r_r
+    print "Right image Translation"
+    print t_r
 
     # e = numpy.array(math_util.rotation_matrix_decompose(r_r))
     # print e / math.pi*180
 
 
-    # output_image = convert_fisheye_equ(input_image_l,"out_l.jpg", (4096,2048), fov[0], r_l, t_l)
-    # output_image = convert_fisheye_equ(input_image_r,"out_r.jpg", (4096,2048), fov[1], r_r, t_r)
-
+    output_image_l = convert_fisheye_equ(input_image_l, (1024,512), fov[0], r_l, t_l)
+    output_image_r = convert_fisheye_equ(input_image_r, (1024,512), fov[1], r_r, t_r)
+    cv2.imwrite("out_l_1024.jpg",output_image_l)
+    cv2.imwrite("out_r_1024.jpg",output_image_r)
 
 
 
