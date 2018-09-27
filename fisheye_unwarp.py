@@ -88,7 +88,7 @@ def fi_theta_to_pxyz(fi, theta, o_center_position = numpy.array([0.0,0.0,0.0]), 
         rotation_matrix: The rotation of the optical axis, it is originally pointed to y axis.
 
     Returns:
-        p: A 3d vector, that is on sphere.
+        A 3d vector, that is on sphere.
     """
     vec = numpy.array([math.sin(fi) * math.cos(theta),\
                         math.cos(fi),\
