@@ -4,6 +4,14 @@ This Module stores the routine to test routines in fisheye unwarp
 import math_util
 from fisheye_unwarp import *
 
+def rotation():
+    for i in xrange(-8,8):
+        r = math.pi / 4.0 * i
+        r_m = rotation_matrix_z(r)
+        print r_m
+        input_image_l = cv2.imread("fisheye_l.jpg")
+        output_image = convert_fisheye_equ(input_image_l,"out_l.jpg", (1024,512), 200.0/180*math.pi, r_m,numpy.array([0.0,0.0,0.0]))
+        cv2.imwrite("rotation_test_{}.jpg".format(i*45), output_image)
 
 def test_equ_to_fisheye():
     import random
