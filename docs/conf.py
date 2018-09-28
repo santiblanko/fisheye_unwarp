@@ -24,7 +24,7 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
         return MagicMock()
 
-MOCK_MODULES = ['cv2',  'numpy','numpy.linalg',"matplotlib.pyplot"]
+MOCK_MODULES = ['cv2',  'numpy','numpy.linalg',"matplotlib","mpl_toolkits","matplotlib.pyplot","mpl_toolkits.mplot3d"]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
